@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Photo3D</title>
+<meta name="description" content="Turn a photo into a 3D relief heightmap or STL for laser engravers and CNC machines.">
+<meta name="theme-color" content="#071338">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="top">
+  <h1><span class="glow">Photo</span>3D</h1>
+  <button id="menuBtn" class="icon" aria-label="Menu">☰</button>
+</header>
+
+<main>
+  <section class="card" id="stepPhoto">
+    <h2>1 · Photo</h2>
+    <div class="row">
+      <label class="btn primary">Take photo<input id="camIn" type="file" accept="image/*" capture="environment" hidden></label>
+      <label class="btn">Choose photo<input id="fileIn" type="file" accept="image/*" hidden></label>
+    </div>
+    <p class="hint">Faces, pets and objects work best with even light and a plain background. Your photo stays on this device.</p>
+  </section>
+
+  <section class="card" id="stepDepth" hidden>
+    <h2>2 · Depth</h2>
+    <div>
+      <label class="pick"><input type="radio" name="mode" value="ai" checked> AI depth <small>(downloads ~27–50 MB once)</small></label>
+      <label class="pick"><input type="radio" name="mode" value="quick"> Quick <small>(no download, softer)</small></label>
+    </div>
+    <button id="runBtn" class="btn primary">Make relief</button>
+    <div id="status" class="status" aria-live="polite"></div>
+  </section>
+
+  <section class="card" id="stepAdjust" hidden>
+    <h2>3 · Adjust</h2>
+    <div class="previewWrap">
+      <canvas id="preview"></canvas>
+      <div class="seg" role="tablist">
+        <button data-view="shaded" class="on">3D look</button>
+        <button data-view="height">Heightmap</button>
+        <button data-view="photo">Photo</button>
+      </div>
+    </div>
+    <div class="sliders">
+      <label>Detail <input type="range" id="detail" min="0" max="100"></label>
+      <label>Photo texture <input type="range" id="texture" min="0" max="100"></label>
+      <label>Smoothing <input type="range" id="smooth" min="0" max="10" step="0.5"></label>
+      <label>Contrast <input type="range" id="gamma" min="50" max="200"></label>
+      <label>Remove background <input type="range" id="background" min="0" max="60"></label>
+      <label class="check"><input type="checkbox" id="invert"> Invert (lithophane or mold)</label>
+    </div>
+  </section>
+
+  <section class="card" id="stepExport" hidden>
+    <h2>4 · Size and export</h2>
+    <div class="grid">
+      <label>Width (mm) <input type="number" id="widthMm" value="100" min="10" max="1000"></label>
+      <label>Relief depth (mm) <input type="number" id="reliefMm" value="3" min="0.2" max="50" step="0.1"></label>
+      <label>Base (mm) <input type="number" id="baseMm" value="2" min="0" max="50" step="0.5"></label>
+      <label>Resolution (px/mm) <input type="number" id="pxPerMm" value="10" min="2" max="20"></label>
+    </div>
+    <p class="hint" id="sizeInfo"></p>
+    <div class="row wrap">
+      <button class="btn primary" data-export="png16">Heightmap PNG (16-bit)</button>
+      <button class="btn" data-export="png8">PNG (8-bit, LightBurn)</button>
+      <button class="btn" data-export="stl">STL (3D model)</button>
+    </div>
+    <p class="hint">16-bit keeps smooth slopes for CNC finishing passes. Use 8-bit for laser software that only reads normal images. STL is for CAM software (Fusion, Carveco, Vectric) and 3D printers.</p>
+  </section>
+</main>
+
+<dialog id="menu">
+  <h2>Photo3D</h2>
+  <p id="ver" class="hint"></p>
+  <h3>What's new</h3>
+  <ul id="whatsNew"></ul>
+  <h3>Report a problem</h3>
+  <textarea id="reportText" rows="4" placeholder="What went wrong?"></textarea>
+  <div class="row wrap">
+    <button class="btn primary" id="sendReport">Send</button>
+    <button class="btn" id="copyReport">Copy report text</button>
+  </div>
+  <p id="reportStatus" class="hint"></p>
+  <div class="row"><button class="btn" id="closeMenu">Close</button></div>
+</dialog>
+
+<div id="updateBar" class="updateBar" hidden>An update is ready. <button class="btn small" id="updateNow">Update now</button></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

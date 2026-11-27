@@ -1,0 +1,10 @@
+Copyright (c) 2026 VYBEON. All rights reserved.
+
+This software and its source code are proprietary and confidential.
+No part of this application may be copied, reproduced, modified,
+distributed, or used, in whole or in part, without the express written
+permission of the copyright holder.
+
+Third-party components loaded at run time (transformers.js, ONNX Runtime
+Web) are licensed under their own terms (Apache-2.0 and MIT).
+The on-device depth model (Depth Anything V2 Small) is Apache-2.0 licensed.

@@ -1,4 +1,4 @@
-import { APP_NAME, VERSION, BUILD, WHATS_NEW, W3F_KEY, REPORT_PREFIX } from './config.js';
+import { APP_NAME, VERSION, BUILD, WHATS_NEW, W3F_KEY, REPORT_SUBJECT } from './config.js';
 import { estimateDepth, depthDevice, avoidDevices, IS_IOS } from './depth.js';
 import { makeHeightmap, baseDepth, renderPreview, luminance, DEFAULTS } from './relief.js';
 import { png16, png8, stl, download } from './export.js';
@@ -223,12 +223,11 @@ $('copyReport').addEventListener('click', async () => {
   try { await navigator.clipboard.writeText(reportBody()); $('reportStatus').textContent = 'Copied.'; } catch { $('reportStatus').textContent = 'Could not copy.'; }
 });
 $('sendReport').addEventListener('click', async () => {
-  const subject = ($('reportText').value.trim().split('\n')[0] || 'Problem').slice(0, 80);
   $('reportStatus').textContent = 'Sending…';
   try {
     const res = await fetch('https://api.web3forms.com/submit', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-      body: JSON.stringify({ access_key: W3F_KEY, subject: REPORT_PREFIX + ' ' + subject, from_name: APP_NAME, botcheck: '', message: reportBody() }),
+      body: JSON.stringify({ access_key: W3F_KEY, subject: REPORT_SUBJECT, from_name: APP_NAME, botcheck: '', message: reportBody() }),
     });
     const j = await res.json();
     if (!(j && j.success)) throw 0;

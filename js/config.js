@@ -14,7 +14,7 @@ export const WHATS_NEW = [
 // Web3Forms access key for "Report a problem" (public by design; routes to the app's report inbox).
 // Leave empty until it is set up: the app then only offers "Copy report text".
 export const W3F_KEY = '19e35d7e-216c-43ee-b93e-fab02f7eaa91';
-export const REPORT_PREFIX = 'Photo3D —';
+export const REPORT_SUBJECT = 'Photo3D'; // every report email has exactly this subject
 
 // On-device depth model (Apache 2.0). See docs in README.
 export const DEPTH_MODEL = 'onnx-community/depth-anything-v2-small';

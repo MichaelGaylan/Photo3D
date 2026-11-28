@@ -14,6 +14,7 @@ Project code: **P3D**
 - [ ] P3D-009 · Cleanup button: clean up the photo before processing (denoise, even out light, remove blemishes and dust) · UI · M · added 2026-11-28
 - [ ] P3D-015 · Screen themes from the VYBEON theme swatches PDF (Gaylan's Dropbox link, kept in project notes) · UI · M · added 2026-11-28
 - [ ] P3D-016 · About screen: app name, version and build, what's new, credits and copyright, privacy, model and library credits (like VYBEON Make's About) · UI · S · added 2026-11-28
+- [ ] P3D-017 · Liquid glass buttons, matching VYBEON Make's liquid glass tab bar (MAKE-002): translucent glass, highlight, springy press · UI · M · added 2026-11-28
 - [ ] P3D-010 · Dockable controls: move the control panel to the left, right or bottom of the work area · UI · M · added 2026-11-28
 
 ## 🟡 Hold

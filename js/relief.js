@@ -64,11 +64,18 @@ export const DEFAULTS = {
 };
 
 // depth: {w,h,data}; lum: Float32Array at w x h (photo brightness) or null.
-export function makeHeightmap(depth, lum, w, h, o) {
-  let d = resample(depth, w, h);
+// The resampled, normalized depth at one size. Cache it: sliders don't change it.
+export function baseDepth(depth, w, h) {
+  const d = resample(depth, w, h);
   const lo = percentile(d, 0.01), hi = percentile(d, 0.995);
   const span = hi - lo || 1;
   for (let i = 0; i < d.length; i++) d[i] = Math.min(1, Math.max(0, (d[i] - lo) / span));
+  return d;
+}
+
+// base: from baseDepth() (pass it to skip recomputing); it is not modified.
+export function makeHeightmap(depth, lum, w, h, o, base) {
+  let d = base ? base.slice() : baseDepth(depth, w, h);
 
   const scale = w / 1000;
   if (o.smooth > 0) d = blur(d, w, h, o.smooth * scale * 2);
@@ -98,8 +105,8 @@ export function makeHeightmap(depth, lum, w, h, o) {
 }
 
 // Grayscale or shaded preview into an ImageData.
-export function renderPreview(hm, w, h, mode, reliefMm = 3, mmPerPx = 0.2) {
-  const img = new ImageData(w, h), p = img.data;
+export function renderPreview(hm, w, h, mode, reliefMm = 3, mmPerPx = 0.2, into = null) {
+  const img = into || new ImageData(w, h), p = img.data;
   if (mode === 'shaded') {
     const z = reliefMm / mmPerPx;
     const L = [-0.5, -0.6, 0.62];

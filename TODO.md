@@ -18,6 +18,9 @@ Project code: **P3D**
 ## 🟡 Hold
 
 ## 🟣 Done
+### 0.1.2 · build 2026.11.28-2
+- [x] P3D-012 · iPhone: moving the sliders after AI depth sent the app back to the start (memory). Model unloaded after use on iOS, smaller cached preview, throttled redraws, session restored after a reload · Bug · M
+
 ### 0.1.1 · build 2026.11.28-1
 - [x] P3D-011 · iPhone: AI depth sent the app back to the start screen (Safari memory limit). Lighter iOS mode, photo restored after a crash, Quick fallback · Bug · M
 

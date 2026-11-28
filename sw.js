@@ -1,6 +1,6 @@
 // Service worker: works offline, updates on request.
 // Bump CACHE with every release (it follows the app version and build).
-const CACHE = 'photo3d-0.1.1-2026.11.28-1';
+const CACHE = 'photo3d-0.1.2-2026.11.28-2';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest',
   'js/app.js', 'js/config.js', 'js/depth.js', 'js/relief.js', 'js/export.js',

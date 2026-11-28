@@ -1,11 +1,11 @@
 import { APP_NAME, VERSION, BUILD, WHATS_NEW, W3F_KEY, REPORT_PREFIX } from './config.js';
 import { estimateDepth, depthDevice, avoidDevices, IS_IOS } from './depth.js';
-import { makeHeightmap, renderPreview, luminance, DEFAULTS } from './relief.js';
+import { makeHeightmap, baseDepth, renderPreview, luminance, DEFAULTS } from './relief.js';
 import { png16, png8, stl, download } from './export.js';
 
 const $ = (id) => document.getElementById(id);
 const MAX_PHOTO = 2048;   // longest side kept from the photo
-const PREVIEW = 720;      // longest side of the live preview
+const PREVIEW = IS_IOS ? 480 : 720; // longest side of the live preview (iPhone: less memory)
 const MAX_STL = 600;      // longest side of the STL grid (keeps files under ~45 MB)
 
 const state = { photo: null, depth: null, view: 'shaded', opts: { ...DEFAULTS }, name: 'relief' };
@@ -57,7 +57,22 @@ async function loadPhoto(f, name, save) {
   bmp.close && bmp.close();
   setStatus('Photo ready: ' + c.width + ' × ' + c.height + ' px.');
   $('stepDepth').scrollIntoView({ behavior: 'smooth' });
-  if (save) c.toBlob((b) => kv('photo', { blob: b, name }).catch(() => {}), 'image/jpeg', 0.92);
+  if (save) {
+    kv('session', null).catch(() => {});
+    c.toBlob((b) => kv('photo', { blob: b, name }).catch(() => {}), 'image/jpeg', 0.92);
+  }
+}
+
+// Pick up where you left off if the page reloaded within 30 minutes of making a relief.
+const showAdjust = () => { $('stepAdjust').hidden = false; $('stepExport').hidden = false; redraw(); updateSize(); };
+if (!crashedOn) {
+  Promise.all([kv('photo'), kv('session')]).then(async ([saved, sess]) => {
+    if (!saved || !saved.blob || !sess || !sess.depth || Date.now() - sess.t > 30 * 60 * 1000) return;
+    await loadPhoto(saved.blob, saved.name, false);
+    state.depth = sess.depth;
+    setStatus('Picked up where you left off.');
+    showAdjust();
+  }).catch(() => {});
 }
 
 if (crashedOn) {
@@ -97,6 +112,7 @@ $('runBtn').addEventListener('click', async () => {
     if (mode === 'ai') localStorage.setItem(ATTEMPT, 'loading');
     setStatus(mode === 'ai' ? 'Loading the depth model…' : 'Working…');
     state.depth = await estimateDepth(state.photo, mode, onProgress);
+    kv('session', { depth: state.depth, t: Date.now() }).catch(() => {});
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
     setStatus((mode === 'ai' ? 'AI depth done on ' + (depthDevice() === 'webgpu' ? 'GPU' : 'CPU') : 'Quick depth done') + ' in ' + secs + ' s.');
     $('stepAdjust').hidden = false; $('stepExport').hidden = false;
@@ -120,8 +136,24 @@ for (const b of document.querySelectorAll('.seg button')) b.addEventListener('cl
   state.view = b.dataset.view; redraw();
 });
 
-let pending = 0;
-function schedule() { cancelAnimationFrame(pending); pending = requestAnimationFrame(redraw); }
+// Redraw at most every 80 ms and never two at once, so dragging a slider
+// doesn't pile up big temporary arrays (iPhone Safari closes the page when memory runs out).
+let timer = 0, busy = false, dirty = false;
+function schedule() {
+  if (busy) { dirty = true; return; }
+  clearTimeout(timer);
+  timer = setTimeout(() => { busy = true; try { redraw(); } finally { busy = false; } if (dirty) { dirty = false; schedule(); } }, 80);
+}
+
+// Preview inputs that sliders don't change: computed once per photo, depth and size.
+let prev = null;
+function previewInputs(w, h) {
+  if (!prev || prev.w !== w || prev.h !== h || prev.depth !== state.depth || prev.photo !== state.photo) {
+    prev = null; // drop the old arrays first
+    prev = { w, h, depth: state.depth, photo: state.photo, lum: lumAt(w, h).lum, base: baseDepth(state.depth, w, h), img: new ImageData(w, h) };
+  }
+  return prev;
+}
 
 function lumAt(w, h) {
   const c = new OffscreenCanvas(w, h), g = c.getContext('2d');
@@ -137,13 +169,13 @@ function sizeFor(longest) {
 function redraw() {
   if (!state.depth) return;
   const [w, h] = sizeFor(Math.min(PREVIEW, Math.max(state.photo.width, state.photo.height)));
-  const cv = $('preview'); cv.width = w; cv.height = h;
+  const cv = $('preview'); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   const g = cv.getContext('2d');
   if (state.view === 'photo') { g.drawImage(state.photo, 0, 0, w, h); return; }
-  const { lum } = lumAt(w, h);
-  const hm = makeHeightmap(state.depth, lum, w, h, state.opts);
+  const pi = previewInputs(w, h);
+  const hm = makeHeightmap(state.depth, pi.lum, w, h, state.opts, pi.base);
   const widthMm = +$('widthMm').value || 100;
-  g.putImageData(renderPreview(hm, w, h, state.view === 'shaded' ? 'shaded' : 'height', +$('reliefMm').value || 3, widthMm / w), 0, 0);
+  g.putImageData(renderPreview(hm, w, h, state.view === 'shaded' ? 'shaded' : 'height', +$('reliefMm').value || 3, widthMm / w, pi.img), 0, 0);
 }
 
 // ---------- 4. Size and export ----------

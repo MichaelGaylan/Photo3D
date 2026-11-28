@@ -36,6 +36,12 @@ async function loadPipe(onProgress) {
 
 export function depthDevice() { return usedDevice; }
 
+// Unload the model (it reloads from the browser cache next time).
+export async function disposeDepth() {
+  const p = pipePromise; pipePromise = null;
+  if (p) { try { const pipe = await p; await pipe.dispose(); } catch {} }
+}
+
 // Returns { w, h, data: Float32Array } where larger = nearer, any range.
 export async function estimateDepth(canvas, mode, onProgress) {
   if (mode === 'quick') return quickDepth(canvas);
@@ -53,8 +59,10 @@ export async function estimateDepth(canvas, mode, onProgress) {
     const t = out.predicted_depth;
     const dims = t.dims;
     const h = dims[dims.length - 2], w = dims[dims.length - 1];
-    return { w, h, data: Float32Array.from(t.data) };
-  } finally { URL.revokeObjectURL(url); }
+    const result = { w, h, data: Float32Array.from(t.data) };
+    if (IS_IOS) await disposeDepth(); // give the model's memory back before the sliders need it
+    return result;
+  } finally { URL.revokeObjectURL(url); small.width = small.height = 0; }
 }
 
 function quickDepth(canvas) {

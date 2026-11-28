@@ -2,13 +2,15 @@
 
 Project code: **P3D**
 
+Standing rule (Gaylan, 2026-11-28): only free services, and only models, libraries, fonts and assets whose licenses allow commercial use (no non-commercial or research-only licenses), so reliefs made with the app can be sold.
+
 ## 🔴 Needs you
 
 ## 🔵 Build list
 
 ## 🟡 Hold
-- [ ] P3D-004 · Server "High detail" mode on Render (Depth Anything 3 Mono-Large or MoGe-2) · Infra · L · added 2026-11-27 — on hold 2026-11-28 (Gaylan). Needs a paid Render instance (a GPU-less starter is too slow for these models) and Gaylan's go-ahead on cost; also decides whether photos may leave the phone for this mode
-- [ ] P3D-018 · AI background cut-out (part of P3D-006) · UI · M · added 2026-11-28 — on hold 2026-11-28 (Gaylan). Needs a model choice: RMBG-2.0 is non-commercial only, BiRefNet (MIT) is sharp but a large download for phones, and the small free ones (MODNet for people, U2-Net-p for objects, Apache 2.0) are rougher. The depth-based Remove background slider and Crop cover most cases meanwhile
+- [ ] P3D-004 · Server "High detail" mode on Render (Depth Anything 3 Mono-Large or MoGe-2) · Infra · L · added 2026-11-27 — on hold 2026-11-28 (Gaylan). Needs a paid Render instance, which is ruled out for now (no paid services). Candidate models are commercial-use (DA3 Mono-Large Apache 2.0, MoGe-2 MIT); the CC BY-NC Large variants are ruled out
+- [ ] P3D-018 · AI background cut-out (part of P3D-006) · UI · M · added 2026-11-28 — on hold 2026-11-28 (Gaylan). RMBG-2.0 is ruled out (non-commercial license). If picked up later, use a commercial-use model: BiRefNet (MIT, large download) or MODNet / U2-Net-p (Apache 2.0, small, rougher). The depth-based Remove background slider and Crop cover most cases meanwhile
 
 ## 🟣 Done
 ### 0.2.0 · build 2026.11.28-5

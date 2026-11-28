@@ -3,7 +3,6 @@
 Project code: **P3D**
 
 ## 🔴 Needs you
-- [ ] P3D-002 · Web3Forms key for Report a problem · Infra · S — create a key at web3forms.com for this app's report inbox and send it to Claude (it goes in `js/config.js` as `W3F_KEY`)
 
 ## 🔵 Build list
 - [ ] P3D-004 · Server "High detail" mode on Render (Depth Anything 3 Mono-Large or MoGe-2) · Infra · L · added 2026-11-27
@@ -20,6 +19,9 @@ Project code: **P3D**
 ## 🟡 Hold
 
 ## 🟣 Done
+### 0.1.4 · build 2026.11.28-4
+- [x] P3D-002 · Report a problem sends via Web3Forms (key from Gaylan) · Infra · S
+
 ### 0.1.3 · build 2026.11.28-3
 - [x] P3D-003 · Try AI depth on iPhone · Safety · S — confirmed working by Gaylan 2026-11-28
 - [x] P3D-014 · Update notice stays until Update now or Later is tapped; Install the update in the menu; checks for updates when the app is reopened · UI · S

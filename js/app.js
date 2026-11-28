@@ -2,13 +2,20 @@ import { APP_NAME, VERSION, BUILD, WHATS_NEW, W3F_KEY, REPORT_SUBJECT } from './
 import { estimateDepth, depthDevice, avoidDevices, IS_IOS } from './depth.js';
 import { makeHeightmap, baseDepth, renderPreview, luminance, DEFAULTS } from './relief.js';
 import { png16, png8, stl, download } from './export.js';
+import { applyTheme, themeGrid } from './theme.js';
+import { cleanupPhoto } from './cleanup.js';
+import { open3D, update3D, close3D, is3DOpen } from './view3d.js';
+import { PROFILES, savedProfile, saveProfile, testCard } from './profiles.js';
+
+applyTheme();
 
 const $ = (id) => document.getElementById(id);
 const MAX_PHOTO = IS_IOS ? 1600 : 2048; // longest side kept from the photo (iPhone: less memory)
 const PREVIEW = IS_IOS ? 480 : 720; // longest side of the live preview (iPhone: less memory)
 const MAX_STL = 600;      // longest side of the STL grid (keeps files under ~45 MB)
+const MAX_3D = IS_IOS ? 160 : 256; // longest side of the rotatable 3D mesh (iPhone: less memory)
 
-const state = { photo: null, depth: null, view: 'shaded', opts: { ...DEFAULTS }, name: 'relief' };
+const state = { photo: null, undo: null, depth: null, view: 'photo', opts: { ...DEFAULTS }, name: 'relief' };
 
 // ---------- Crash guard ----------
 // If the browser closes the page during AI depth (iPhone memory limit), the
@@ -38,12 +45,41 @@ async function kv(key, value) {
   });
 }
 
+// ---------- Workspace: dock the controls left, right or bottom (P3D-010) ----------
+const DOCK = 'p3d.dock';
+// Slides a segmented control's glass bubble under its selected button.
+function bubble(seg) {
+  const on = seg.querySelector('button.on'), b = seg.querySelector('.bubble');
+  if (!b) return;
+  if (!on || !on.offsetWidth) { b.style.width = '0'; return; }
+  b.style.left = on.offsetLeft + 'px'; b.style.width = on.offsetWidth + 'px';
+}
+const segs = [$('viewSeg'), $('dockSeg')];
+const segRO = new ResizeObserver(() => segs.forEach(bubble)); segs.forEach((s) => segRO.observe(s));
+function setDock(d) {
+  if (!['left', 'right', 'bottom'].includes(d)) d = 'bottom';
+  localStorage.setItem(DOCK, d);
+  document.body.classList.remove('dock-left', 'dock-right', 'dock-bottom');
+  document.body.classList.add('dock-' + d);
+  document.querySelectorAll('[data-dock]').forEach((x) => x.classList.toggle('on', x.dataset.dock === d));
+  bubble($('dockSeg'));
+  requestAnimationFrame(() => { bubble($('viewSeg')); if (cropping) layoutCrop(); });
+}
+document.querySelectorAll('[data-dock]').forEach((b) => b.addEventListener('click', () => setDock(b.dataset.dock)));
+setDock(localStorage.getItem(DOCK) || (matchMedia('(min-width: 1100px)').matches ? 'right' : 'bottom'));
+
 // ---------- 1. Photo ----------
 for (const inp of [$('camIn'), $('fileIn')]) inp.addEventListener('change', async (e) => {
   const f = e.target.files[0]; if (!f) return;
   e.target.value = '';
   await loadPhoto(f, (f.name || 'relief').replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_') || 'relief', true);
 });
+
+function savePhoto() {
+  kv('session', null).catch(() => {});
+  const name = state.name;
+  state.photo.toBlob((b) => kv('photo', { blob: b, name }).catch(() => {}), 'image/jpeg', 0.92);
+}
 
 async function loadPhoto(f, name, save) {
   state.name = name;
@@ -52,26 +88,132 @@ async function loadPhoto(f, name, save) {
   const c = document.createElement('canvas');
   c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-  state.photo = c; state.depth = null;
-  $('stepDepth').hidden = false; $('stepAdjust').hidden = true; $('stepExport').hidden = true;
   bmp.close && bmp.close();
+  if (cropping) endCrop();
+  freeCanvas(state.undo); state.undo = null; $('undoPhoto').hidden = true;
+  state.photo = c;
+  photoChanged();
   setStatus('Photo ready: ' + c.width + ' × ' + c.height + ' px.');
-  $('stepDepth').scrollIntoView({ behavior: 'smooth' });
-  if (save) {
-    kv('session', null).catch(() => {});
-    c.toBlob((b) => kv('photo', { blob: b, name }).catch(() => {}), 'image/jpeg', 0.92);
-  }
+  if (save) savePhoto();
 }
 
+function freeCanvas(c) { if (c) c.width = c.height = 0; } // hands the pixels back right away (iPhone)
+
+// A new or edited photo: the old depth no longer fits it.
+function photoChanged() {
+  state.depth = null; cache.clear();
+  $('stage').hidden = false; $('photoTools').hidden = false; $('stepDepth').hidden = false;
+  $('stepAdjust').hidden = true; $('stepExport').hidden = true;
+  for (const b of $('viewSeg').querySelectorAll('button')) b.disabled = b.dataset.view !== 'photo';
+  setView('photo');
+  $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Replace the photo with an edited copy (cleanup or crop). One step of Undo.
+function editPhoto(c) {
+  freeCanvas(state.undo);
+  state.undo = state.photo; state.photo = c; $('undoPhoto').hidden = false;
+  photoChanged(); savePhoto();
+}
+$('undoPhoto').addEventListener('click', () => {
+  if (!state.undo) return;
+  if (cropping) endCrop();
+  freeCanvas(state.photo); state.photo = state.undo; state.undo = null; $('undoPhoto').hidden = true;
+  photoChanged(); savePhoto(); setStatus('Back to the photo before the last change.');
+});
+
+// Clean up (P3D-009): dust and specks, uneven light, flat levels.
+$('cleanBtn').addEventListener('click', () => {
+  if (!state.photo) return;
+  if (cropping) endCrop();
+  $('cleanBtn').disabled = true; setStatus('Cleaning up the photo…');
+  setTimeout(() => {
+    try {
+      const t0 = performance.now();
+      editPhoto(cleanupPhoto(state.photo, +$('cleanStrength').value));
+      setStatus('Photo cleaned up in ' + ((performance.now() - t0) / 1000).toFixed(1) + ' s. Tap Undo to go back.');
+    } catch (err) { console.error(err); setStatus('Could not clean up this photo (' + (err && err.message || err) + ').'); }
+    finally { $('cleanBtn').disabled = false; }
+  }, 30);
+});
+
+// Crop (P3D-006): drag a box over the photo, then Apply.
+let cropping = false, crop = null, drag = null;
+$('cropBtn').addEventListener('click', () => {
+  if (!state.photo) return;
+  if (cropping) { endCrop(); return; }
+  setView('photo');
+  cropping = true; crop = { x: 0.05, y: 0.05, w: 0.9, h: 0.9 };
+  $('cropBox').hidden = false; $('cropBar').hidden = false; $('cropBtn').classList.add('primary');
+  layoutCrop();
+});
+function endCrop() {
+  cropping = false; drag = null;
+  $('cropBox').hidden = true; $('cropBar').hidden = true; $('cropBtn').classList.remove('primary');
+}
+// Fit the crop layer to the picture inside the canvas (the canvas can be letterboxed).
+function layoutCrop() {
+  const cv = $('preview'), cr = cv.getBoundingClientRect(), br = $('stageBox').getBoundingClientRect();
+  if (!cv.width || !cr.width) return;
+  const sc = Math.min(cr.width / cv.width, cr.height / cv.height), cw = cv.width * sc, ch = cv.height * sc;
+  Object.assign($('cropBox').style, { left: (cr.left - br.left + (cr.width - cw) / 2) + 'px', top: (cr.top - br.top + (cr.height - ch) / 2) + 'px', width: cw + 'px', height: ch + 'px', right: 'auto', bottom: 'auto' });
+  Object.assign($('cropRect').style, { left: crop.x * 100 + '%', top: crop.y * 100 + '%', width: crop.w * 100 + '%', height: crop.h * 100 + '%' });
+}
+const cropPoint = (e) => {
+  const r = $('cropBox').getBoundingClientRect();
+  return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
+};
+$('cropBox').addEventListener('pointerdown', (e) => {
+  e.preventDefault(); $('cropBox').setPointerCapture(e.pointerId);
+  const [px, py] = cropPoint(e), h = e.target.dataset && e.target.dataset.h;
+  if (h) drag = { mode: h };
+  else if (e.target === $('cropRect')) drag = { mode: 'move', px, py, x: crop.x, y: crop.y };
+  else { crop = { x: px, y: py, w: 0, h: 0 }; drag = { mode: 'se' }; }
+  drag.ax = drag.mode.includes('w') ? crop.x + crop.w : crop.x; // the fixed corner while resizing
+  drag.ay = drag.mode.includes('n') ? crop.y + crop.h : crop.y;
+});
+$('cropBox').addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const [px, py] = cropPoint(e);
+  if (drag.mode === 'move') {
+    crop.x = Math.min(1 - crop.w, Math.max(0, drag.x + px - drag.px));
+    crop.y = Math.min(1 - crop.h, Math.max(0, drag.y + py - drag.py));
+  } else {
+    crop = { x: Math.min(drag.ax, px), y: Math.min(drag.ay, py), w: Math.abs(px - drag.ax), h: Math.abs(py - drag.ay) };
+  }
+  layoutCrop();
+});
+const cropUp = () => {
+  if (!drag) return; drag = null;
+  if (crop.w < 0.03 || crop.h < 0.03) crop = { x: 0.05, y: 0.05, w: 0.9, h: 0.9 }; // a tap, not a drag
+  layoutCrop();
+};
+$('cropBox').addEventListener('pointerup', cropUp); $('cropBox').addEventListener('pointercancel', cropUp);
+$('cropCancel').addEventListener('click', endCrop);
+$('cropApply').addEventListener('click', () => {
+  const p = state.photo;
+  const sx = Math.round(crop.x * p.width), sy = Math.round(crop.y * p.height);
+  const sw = Math.max(8, Math.round(crop.w * p.width)), sh = Math.max(8, Math.round(crop.h * p.height));
+  const c = document.createElement('canvas'); c.width = sw; c.height = sh;
+  c.getContext('2d').drawImage(p, sx, sy, sw, sh, 0, 0, sw, sh);
+  endCrop(); editPhoto(c);
+  setStatus('Cropped to ' + sw + ' × ' + sh + ' px. Tap Undo to go back.');
+});
+window.addEventListener('resize', () => { if (cropping) layoutCrop(); });
+
 // Pick up where you left off if the page reloaded within 30 minutes of making a relief.
-const showAdjust = () => { $('stepAdjust').hidden = false; $('stepExport').hidden = false; redraw(); updateSize(); };
+function depthReady() {
+  for (const b of $('viewSeg').querySelectorAll('button')) b.disabled = false;
+  $('stepAdjust').hidden = false; $('stepExport').hidden = false;
+  setView(state.view === 'photo' ? 'shaded' : state.view); updateSize();
+}
 if (!crashedOn) {
   Promise.all([kv('photo'), kv('session')]).then(async ([saved, sess]) => {
     if (!saved || !saved.blob || !sess || !sess.depth || Date.now() - sess.t > 30 * 60 * 1000) return;
     await loadPhoto(saved.blob, saved.name, false);
     state.depth = sess.depth;
     setStatus('Picked up where you left off.');
-    showAdjust();
+    depthReady();
   }).catch(() => {});
 }
 
@@ -81,7 +223,8 @@ if (crashedOn) {
     setStatus(crashedOn === 'webgpu'
       ? 'AI depth closed the page last time. Your photo is back. Tap Make relief to try the lighter AI mode.'
       : 'AI depth needs more memory than this browser allows, so Quick is selected. Your photo is back.');
-    if (crashedOn !== 'webgpu') document.querySelector('input[value=quick]').checked = true;
+    if (crashedOn !== 'webgpu') { document.querySelector('input[value=quick]').checked = true; modeChanged(); }
+    $('tiled').checked = false;
   }).catch(() => {});
 }
 
@@ -92,10 +235,18 @@ function setStatus(text, frac) {
   if (frac != null) { const b = document.createElement('div'); b.className = 'bar'; b.innerHTML = '<i></i>'; b.firstChild.style.width = Math.round(frac * 100) + '%'; $('status').append(b); }
 }
 
+function modeChanged() { $('tiledPick').hidden = document.querySelector('input[name=mode]:checked').value !== 'ai'; }
+for (const r of document.querySelectorAll('input[name=mode]')) r.addEventListener('change', modeChanged);
+modeChanged();
+
 const files = {};
 function onProgress(p) {
   if (p.status === 'device') { localStorage.setItem(ATTEMPT, p.device); return; }
-  if (p.status === 'running') { setStatus('Working out the depth… this can take 10 to 20 seconds on a phone.'); return; }
+  if (p.status === 'running') {
+    if (p.n > 1) setStatus('Working out the depth, part ' + (p.i + 1) + ' of ' + p.n + '…', p.i / p.n);
+    else setStatus('Working out the depth… this can take 10 to 20 seconds on a phone.');
+    return;
+  }
   if (p.status === 'progress' && p.total) {
     files[p.file] = [p.loaded, p.total];
     const v = Object.values(files), l = v.reduce((a, x) => a + x[0], 0), t = v.reduce((a, x) => a + x[1], 0);
@@ -105,36 +256,45 @@ function onProgress(p) {
 
 $('runBtn').addEventListener('click', async () => {
   if (!state.photo) return;
-  const mode = document.querySelector('input[name=mode]:checked').value;
+  if (cropping) endCrop();
+  const mode = document.querySelector('input[name=mode]:checked').value, tiled = mode === 'ai' && $('tiled').checked;
   $('runBtn').disabled = true;
   const t0 = performance.now();
   try {
     if (mode === 'ai') localStorage.setItem(ATTEMPT, 'loading');
     setStatus(mode === 'ai' ? 'Loading the depth model…' : 'Working…');
-    state.depth = await estimateDepth(state.photo, mode, onProgress);
+    state.depth = null; cache.clear();
+    state.depth = await estimateDepth(state.photo, mode, onProgress, tiled);
     kv('session', { depth: state.depth, t: Date.now() }).catch(() => {});
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
-    setStatus((mode === 'ai' ? 'AI depth done on ' + (depthDevice() === 'webgpu' ? 'GPU' : 'CPU') : 'Quick depth done') + ' in ' + secs + ' s.');
-    $('stepAdjust').hidden = false; $('stepExport').hidden = false;
-    redraw(); updateSize();
-    $('stepAdjust').scrollIntoView({ behavior: 'smooth' });
+    setStatus((mode === 'ai' ? 'AI depth' + (tiled ? ' with extra detail' : '') + ' done on ' + (depthDevice() === 'webgpu' ? 'GPU' : 'CPU') : 'Quick depth done') + ' in ' + secs + ' s.');
+    depthReady();
+    $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   } catch (err) {
     console.error(err);
     setStatus('Could not make AI depth on this device (' + (err && err.message || err) + '). Try Quick, or check your connection for the first download.');
   } finally { localStorage.removeItem(ATTEMPT); $('runBtn').disabled = false; }
 });
 
-// ---------- 3. Adjust ----------
+// ---------- 3. Adjust and view ----------
 const SLIDERS = ['detail', 'texture', 'smooth', 'gamma', 'background'];
 for (const k of SLIDERS) {
   $(k).value = state.opts[k];
   $(k).addEventListener('input', () => { state.opts[k] = +$(k).value; schedule(); });
 }
 $('invert').addEventListener('change', () => { state.opts.invert = $('invert').checked; schedule(); });
-for (const b of document.querySelectorAll('.seg button')) b.addEventListener('click', () => {
-  document.querySelectorAll('.seg button').forEach((x) => x.classList.toggle('on', x === b));
-  state.view = b.dataset.view; redraw();
-});
+for (const b of $('viewSeg').querySelectorAll('button')) b.addEventListener('click', () => { if (!b.disabled) setView(b.dataset.view); });
+
+function setView(v) {
+  state.view = v;
+  $('viewSeg').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x.dataset.view === v));
+  bubble($('viewSeg'));
+  const r3 = v === 'rotate';
+  if (r3 && cropping) endCrop();
+  $('preview').hidden = r3; $('view3d').hidden = !r3; $('viewHint').hidden = !r3;
+  if (!r3) close3D();
+  redraw();
+}
 
 // Redraw at most every 80 ms and never two at once, so dragging a slider
 // doesn't pile up big temporary arrays (iPhone Safari closes the page when memory runs out).
@@ -142,17 +302,20 @@ let timer = 0, busy = false, dirty = false;
 function schedule() {
   if (busy) { dirty = true; return; }
   clearTimeout(timer);
-  timer = setTimeout(() => { busy = true; try { redraw(); } finally { busy = false; } if (dirty) { dirty = false; schedule(); } }, 80);
+  timer = setTimeout(async () => { busy = true; try { await redraw(); } finally { busy = false; } if (dirty) { dirty = false; schedule(); } }, 80);
 }
 
-// Preview inputs that sliders don't change: computed once per photo, depth and size.
-let prev = null;
-function previewInputs(w, h) {
-  if (!prev || prev.w !== w || prev.h !== h || prev.depth !== state.depth || prev.photo !== state.photo) {
-    prev = null; // drop the old arrays first
-    prev = { w, h, depth: state.depth, photo: state.photo, lum: lumAt(w, h).lum, base: baseDepth(state.depth, w, h), img: new ImageData(w, h) };
+// Inputs that sliders don't change, per size (preview and 3D): computed once per photo and depth.
+const cache = new Map();
+function inputsFor(w, h) {
+  const key = w + 'x' + h;
+  let c = cache.get(key);
+  if (!c) {
+    if (cache.size >= 2) cache.clear();
+    c = { lum: lumAt(w, h).lum, base: baseDepth(state.depth, w, h), img: null };
+    cache.set(key, c);
   }
-  return prev;
+  return c;
 }
 
 function lumAt(w, h) {
@@ -166,19 +329,39 @@ function sizeFor(longest) {
   return [Math.max(2, Math.round(p.width * s)), Math.max(2, Math.round(p.height * s))];
 }
 
-function redraw() {
-  if (!state.depth) return;
+const mmInputs = () => [+$('widthMm').value || 100, +$('reliefMm').value || 3, +$('baseMm').value || 0];
+
+async function redraw() {
+  if (!state.photo) return;
+  if (state.view === 'rotate') return draw3D();
   const [w, h] = sizeFor(Math.min(PREVIEW, Math.max(state.photo.width, state.photo.height)));
   const cv = $('preview'); if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
   const g = cv.getContext('2d');
-  if (state.view === 'photo') { g.drawImage(state.photo, 0, 0, w, h); return; }
-  const pi = previewInputs(w, h);
+  if (state.view === 'photo' || !state.depth) { g.drawImage(state.photo, 0, 0, w, h); if (cropping) layoutCrop(); return; }
+  const pi = inputsFor(w, h);
+  if (!pi.img) pi.img = new ImageData(w, h);
   const hm = makeHeightmap(state.depth, pi.lum, w, h, state.opts, pi.base);
-  const widthMm = +$('widthMm').value || 100;
-  g.putImageData(renderPreview(hm, w, h, state.view === 'shaded' ? 'shaded' : 'height', +$('reliefMm').value || 3, widthMm / w, pi.img), 0, 0);
+  const [widthMm, reliefMm] = mmInputs();
+  g.putImageData(renderPreview(hm, w, h, state.view === 'shaded' ? 'shaded' : 'height', reliefMm, widthMm / w, pi.img), 0, 0);
 }
 
-// ---------- 4. Size and export ----------
+// Rotatable 3D preview (P3D-005): a small mesh, freed when you leave this view.
+async function draw3D() {
+  if (!state.depth) return;
+  const [w, h] = sizeFor(MAX_3D), pi = inputsFor(w, h);
+  const hm = makeHeightmap(state.depth, pi.lum, w, h, state.opts, pi.base);
+  const [widthMm, reliefMm, baseMm] = mmInputs();
+  try {
+    if (is3DOpen()) await update3D(hm, w, h, widthMm, reliefMm, baseMm);
+    else await open3D($('view3d'), hm, w, h, widthMm, reliefMm, baseMm, MAX_3D);
+    if (state.view !== 'rotate') close3D(); // switched away while three.js was loading
+  } catch (err) {
+    console.error(err);
+    $('viewHint').textContent = 'The 3D viewer could not start (' + (err && err.message || err) + '). It needs a connection the first time.';
+  }
+}
+
+// ---------- 4. Size, machine and export ----------
 function exportSize(kind) {
   const p = state.photo, widthMm = +$('widthMm').value || 100, ppm = +$('pxPerMm').value || 10;
   let w = Math.round(widthMm * ppm), h = Math.round(w * p.height / p.width);
@@ -192,6 +375,23 @@ function updateSize() {
 }
 for (const id of ['widthMm', 'reliefMm', 'baseMm', 'pxPerMm']) $(id).addEventListener('input', () => { updateSize(); schedule(); });
 
+// Machine and material profiles (P3D-007): starting values and the export that suits.
+for (const [k, p] of Object.entries(PROFILES)) $('profile').add(new Option(p.label, k));
+function applyProfile(k, setValues) {
+  const p = PROFILES[k] || PROFILES.custom;
+  $('profile').value = PROFILES[k] ? k : 'custom';
+  if (setValues && p.widthMm) {
+    $('widthMm').value = p.widthMm; $('reliefMm').value = p.reliefMm; $('baseMm').value = p.baseMm; $('pxPerMm').value = p.pxPerMm;
+    $('invert').checked = state.opts.invert = !!p.invert;
+  }
+  const best = p.export || 'png16';
+  document.querySelectorAll('[data-export]').forEach((b) => b.classList.toggle('primary', b.dataset.export === best));
+  $('profileTip').hidden = !p.tip; $('profileTip').textContent = p.tip || '';
+}
+$('profile').addEventListener('change', () => { saveProfile($('profile').value); applyProfile($('profile').value, true); updateSize(); schedule(); });
+applyProfile(savedProfile(), true);
+const bestExport = () => (PROFILES[$('profile').value] || {}).export || 'png16';
+
 for (const b of document.querySelectorAll('[data-export]')) b.addEventListener('click', async () => {
   if (!state.depth) return;
   const kind = b.dataset.export; b.disabled = true;
@@ -199,20 +399,39 @@ for (const b of document.querySelectorAll('[data-export]')) b.addEventListener('
     const [w, h] = exportSize(kind);
     const { lum } = lumAt(w, h);
     const hm = makeHeightmap(state.depth, lum, w, h, state.opts);
-    const widthMm = +$('widthMm').value || 100;
+    const [widthMm, reliefMm, baseMm] = mmInputs();
     const tag = state.name + '_' + widthMm + 'mm';
     if (kind === 'png16') download(await png16(hm, w, h, w / widthMm), tag + '_16bit.png');
     if (kind === 'png8') download(await png8(hm, w, h), tag + '_8bit.png');
-    if (kind === 'stl') download(stl(hm, w, h, widthMm, +$('reliefMm').value || 3, +$('baseMm').value || 0), tag + '.stl');
+    if (kind === 'stl') download(stl(hm, w, h, widthMm, reliefMm, baseMm), tag + '.stl');
   } catch (err) { console.error(err); alertStatus('Export failed: ' + (err && err.message || err)); }
   finally { b.disabled = false; }
 });
 function alertStatus(t) { $('sizeInfo').textContent = t; }
 
+// Calibration test card in the selected size and export.
+$('testCardBtn').addEventListener('click', async () => {
+  const kind = bestExport(), [widthMm, reliefMm, baseMm] = mmInputs();
+  let ppm = +$('pxPerMm').value || 10;
+  if (kind === 'stl') ppm = Math.min(ppm, MAX_STL / widthMm);
+  $('testCardBtn').disabled = true;
+  try {
+    const { hm, w, h } = testCard(widthMm, ppm);
+    if ($('invert').checked) for (let i = 0; i < hm.length; i++) hm[i] = 1 - hm[i];
+    const tag = 'Photo3D_test_card_' + widthMm + 'mm';
+    if (kind === 'png16') download(await png16(hm, w, h, w / widthMm), tag + '_16bit.png');
+    if (kind === 'png8') download(await png8(hm, w, h), tag + '_8bit.png');
+    if (kind === 'stl') download(stl(hm, w, h, widthMm, reliefMm, baseMm), tag + '.stl');
+  } catch (err) { console.error(err); alertStatus('Test card failed: ' + (err && err.message || err)); }
+  finally { $('testCardBtn').disabled = false; }
+});
+
 // ---------- Menu, What's new, Report a problem ----------
 $('ver').textContent = APP_NAME + ' ' + VERSION + ' · build ' + BUILD;
 $('whatsNew').innerHTML = WHATS_NEW.map(([v, t]) => '<li><b>' + v + '</b> ' + t.replace(/</g, '&lt;') + '</li>').join('');
-$('menuBtn').addEventListener('click', () => $('menu').showModal());
+$('aboutVer').textContent = 'Version ' + VERSION + ', build ' + BUILD + '.';
+$('themes').append(themeGrid());
+$('menuBtn').addEventListener('click', () => { $('menu').showModal(); bubble($('dockSeg')); });
 $('closeMenu').addEventListener('click', () => $('menu').close());
 if (!W3F_KEY) $('sendReport').hidden = true;
 

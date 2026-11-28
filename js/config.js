@@ -1,9 +1,10 @@
 // Release: bump VERSION and BUILD, add a WHATS_NEW line, and bump CACHE in sw.js.
 export const APP_NAME = 'Photo3D';
-export const VERSION = '0.1.4';
-export const BUILD = '2026.11.28-4';
+export const VERSION = '0.2.0';
+export const BUILD = '2026.11.28-5';
 
 export const WHATS_NEW = [
+  ['0.2.0', 'Clean up and Crop for your photo, Extra detail for AI depth, a 3D view you can turn, machine profiles with a test card, screen themes, liquid glass buttons, controls you can dock left, right or bottom, and an About section in the menu.'],
   ['0.1.4', 'Report a problem now sends straight from the app (menu ☰).'],
   ['0.1.3', 'AI depth now runs in its own space and hands all of its memory back when done, so iPhone has room for the sliders. The update notice now stays until you tap Update now or Later, and the menu keeps an Install the update button.'],
   ['0.1.2', 'iPhone: moving the sliders no longer sends you back to the start. If the page ever reloads, your photo and relief come back.'],

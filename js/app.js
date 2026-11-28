@@ -1,5 +1,5 @@
 import { APP_NAME, VERSION, BUILD, WHATS_NEW, W3F_KEY, REPORT_PREFIX } from './config.js';
-import { estimateDepth, depthDevice } from './depth.js';
+import { estimateDepth, depthDevice, avoidDevices, IS_IOS } from './depth.js';
 import { makeHeightmap, renderPreview, luminance, DEFAULTS } from './relief.js';
 import { png16, png8, stl, download } from './export.js';
 
@@ -10,10 +10,43 @@ const MAX_STL = 600;      // longest side of the STL grid (keeps files under ~45
 
 const state = { photo: null, depth: null, view: 'shaded', opts: { ...DEFAULTS }, name: 'relief' };
 
+// ---------- Crash guard ----------
+// If the browser closes the page during AI depth (iPhone memory limit), the
+// next load finds the attempt still marked, skips that engine, and restores the photo.
+const ATTEMPT = 'p3d.aiAttempt', AVOID = 'p3d.aiAvoid';
+const avoidList = JSON.parse(localStorage.getItem(AVOID) || '[]');
+let crashedOn = localStorage.getItem(ATTEMPT);
+// 'loading' = closed before an engine was picked (while the runtime started).
+if (crashedOn === 'loading') crashedOn = IS_IOS || avoidList.includes('webgpu') ? 'wasm' : 'webgpu';
+if (crashedOn) {
+  localStorage.removeItem(ATTEMPT);
+  if (!avoidList.includes(crashedOn)) avoidList.push(crashedOn);
+  localStorage.setItem(AVOID, JSON.stringify(avoidList));
+}
+avoidDevices(avoidList);
+
+// Last photo kept on the device (IndexedDB) so a page reload doesn't lose it.
+function idb() {
+  return new Promise((res, rej) => { const r = indexedDB.open('photo3d', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+}
+async function kv(key, value) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('kv', value === undefined ? 'readonly' : 'readwrite'), st = tx.objectStore('kv');
+    const r = value === undefined ? st.get(key) : st.put(value, key);
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+
 // ---------- 1. Photo ----------
 for (const inp of [$('camIn'), $('fileIn')]) inp.addEventListener('change', async (e) => {
   const f = e.target.files[0]; if (!f) return;
-  state.name = (f.name || 'relief').replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_') || 'relief';
+  e.target.value = '';
+  await loadPhoto(f, (f.name || 'relief').replace(/\.[^.]+$/, '').replace(/[^\w-]+/g, '_') || 'relief', true);
+});
+
+async function loadPhoto(f, name, save) {
+  state.name = name;
   const bmp = await createImageBitmap(f, { imageOrientation: 'from-image' });
   const s = Math.min(1, MAX_PHOTO / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas');
@@ -21,10 +54,21 @@ for (const inp of [$('camIn'), $('fileIn')]) inp.addEventListener('change', asyn
   c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
   state.photo = c; state.depth = null;
   $('stepDepth').hidden = false; $('stepAdjust').hidden = true; $('stepExport').hidden = true;
+  bmp.close && bmp.close();
   setStatus('Photo ready: ' + c.width + ' × ' + c.height + ' px.');
   $('stepDepth').scrollIntoView({ behavior: 'smooth' });
-  e.target.value = '';
-});
+  if (save) c.toBlob((b) => kv('photo', { blob: b, name }).catch(() => {}), 'image/jpeg', 0.92);
+}
+
+if (crashedOn) {
+  kv('photo').then(async (saved) => {
+    if (saved && saved.blob) await loadPhoto(saved.blob, saved.name, false);
+    setStatus(crashedOn === 'webgpu'
+      ? 'AI depth closed the page last time. Your photo is back. Tap Make relief to try the lighter AI mode.'
+      : 'AI depth needs more memory than this browser allows, so Quick is selected. Your photo is back.');
+    if (crashedOn !== 'webgpu') document.querySelector('input[value=quick]').checked = true;
+  }).catch(() => {});
+}
 
 // ---------- 2. Depth ----------
 function setStatus(text, frac) {
@@ -35,6 +79,8 @@ function setStatus(text, frac) {
 
 const files = {};
 function onProgress(p) {
+  if (p.status === 'device') { localStorage.setItem(ATTEMPT, p.device); return; }
+  if (p.status === 'running') { setStatus('Working out the depth… this can take 10 to 20 seconds on a phone.'); return; }
   if (p.status === 'progress' && p.total) {
     files[p.file] = [p.loaded, p.total];
     const v = Object.values(files), l = v.reduce((a, x) => a + x[0], 0), t = v.reduce((a, x) => a + x[1], 0);
@@ -48,6 +94,7 @@ $('runBtn').addEventListener('click', async () => {
   $('runBtn').disabled = true;
   const t0 = performance.now();
   try {
+    if (mode === 'ai') localStorage.setItem(ATTEMPT, 'loading');
     setStatus(mode === 'ai' ? 'Loading the depth model…' : 'Working…');
     state.depth = await estimateDepth(state.photo, mode, onProgress);
     const secs = ((performance.now() - t0) / 1000).toFixed(1);
@@ -58,7 +105,7 @@ $('runBtn').addEventListener('click', async () => {
   } catch (err) {
     console.error(err);
     setStatus('Could not make AI depth on this device (' + (err && err.message || err) + '). Try Quick, or check your connection for the first download.');
-  } finally { $('runBtn').disabled = false; }
+  } finally { localStorage.removeItem(ATTEMPT); $('runBtn').disabled = false; }
 });
 
 // ---------- 3. Adjust ----------

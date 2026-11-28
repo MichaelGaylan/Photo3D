@@ -1,9 +1,10 @@
 // Release: bump VERSION and BUILD, add a WHATS_NEW line, and bump CACHE in sw.js.
 export const APP_NAME = 'Photo3D';
-export const VERSION = '0.1.0';
-export const BUILD = '2026.11.27-1';
+export const VERSION = '0.1.1';
+export const BUILD = '2026.11.28-1';
 
 export const WHATS_NEW = [
+  ['0.1.1', 'iPhone: AI depth uses a lighter mode so the page no longer closes; if it ever does, your photo comes back and Quick is offered.'],
   ['0.1.0', 'First version: photo in, AI depth on your device, relief sliders, 16-bit PNG and STL export.'],
 ];
 

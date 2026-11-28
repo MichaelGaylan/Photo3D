@@ -18,6 +18,9 @@ Project code: **P3D**
 ## 🟡 Hold
 
 ## 🟣 Done
+### 0.1.1 · build 2026.11.28-1
+- [x] P3D-011 · iPhone: AI depth sent the app back to the start screen (Safari memory limit). Lighter iOS mode, photo restored after a crash, Quick fallback · Bug · M
+
 ### 0.1.0 · build 2026.11.27-1
 - [x] P3D-001 · Turn on GitHub Pages · Infra · S — live at https://michaelgaylan.github.io/Photo3D/
 - [x] P3D-000 · First version: photo in, AI depth on device (WebGPU/WASM), Quick depth, relief sliders, 3D-look preview, 16-bit PNG, 8-bit PNG and STL export, installable PWA with offline support and updates, Report a problem (copy text until the key is set)

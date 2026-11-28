@@ -16,17 +16,54 @@
 <body>
 <header class="top">
   <h1><span class="glow">Photo</span>3D</h1>
-  <button id="menuBtn" class="icon" aria-label="Menu">☰</button>
+  <span class="topRight">
+    <span class="dock" role="group" aria-label="Controls position">
+      <button class="icon small" data-dock="left" title="Controls on the left" aria-label="Controls on the left">◧</button>
+      <button class="icon small" data-dock="bottom" title="Controls at the bottom" aria-label="Controls at the bottom">⬓</button>
+      <button class="icon small" data-dock="right" title="Controls on the right" aria-label="Controls on the right">◨</button>
+    </span>
+    <button id="menuBtn" class="icon" aria-label="Menu">☰</button>
+  </span>
 </header>
 
-<main>
+<div class="work" id="work">
+  <section class="stage" id="stage" hidden>
+    <div class="stageBox" id="stageBox">
+      <canvas id="preview"></canvas>
+      <div id="view3d" hidden></div>
+      <div id="cropBox" hidden><div id="cropRect"><i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i></div></div>
+    </div>
+    <div class="seg" id="viewSeg" role="tablist">
+      <span class="bubble" aria-hidden="true"></span>
+      <button data-view="shaded" class="on">3D look</button>
+      <button data-view="rotate">Rotate 3D</button>
+      <button data-view="height">Heightmap</button>
+      <button data-view="photo">Photo</button>
+    </div>
+    <div class="row" id="cropBar" hidden>
+      <span class="hint grow">Drag the corners or the box.</span>
+      <button class="btn small" id="cropCancel">Cancel</button>
+      <button class="btn small primary" id="cropApply">Apply crop</button>
+    </div>
+    <p class="hint" id="viewHint" hidden>Drag to turn, pinch or scroll to zoom, double-tap to reset.</p>
+  </section>
+
+  <main class="panel" id="panel">
   <section class="card" id="stepPhoto">
     <h2>1 · Photo</h2>
-    <div class="row">
+    <div class="row wrap">
       <label class="btn primary">Take photo<input id="camIn" type="file" accept="image/*" capture="environment" hidden></label>
       <label class="btn">Choose photo<input id="fileIn" type="file" accept="image/*" hidden></label>
     </div>
-    <p class="hint">Faces, pets and objects work best with even light and a plain background. Your photo stays on this device.</p>
+    <div id="photoTools" hidden>
+      <div class="row wrap">
+        <button class="btn" id="cleanBtn">Clean up</button>
+        <button class="btn" id="cropBtn">Crop</button>
+        <button class="btn" id="undoPhoto" hidden>Undo</button>
+      </div>
+      <label class="slider">Cleanup strength <input type="range" id="cleanStrength" min="10" max="100" value="60"></label>
+    </div>
+    <p class="hint">Faces, pets and objects work best with even light and a plain background. Clean up removes dust and specks and evens out the light. Your photo stays on this device.</p>
   </section>
 
   <section class="card" id="stepDepth" hidden>
@@ -34,6 +71,7 @@
     <div>
       <label class="pick"><input type="radio" name="mode" value="ai" checked> AI depth <small>(downloads ~27–50 MB once)</small></label>
       <label class="pick"><input type="radio" name="mode" value="quick"> Quick <small>(no download, softer)</small></label>
+      <label class="pick" id="tiledPick"><input type="checkbox" id="tiled"> Extra detail <small>(AI looks at the photo in 4 parts: sharper, about 5 times slower)</small></label>
     </div>
     <button id="runBtn" class="btn primary">Make relief</button>
     <div id="status" class="status" aria-live="polite"></div>
@@ -41,14 +79,6 @@
 
   <section class="card" id="stepAdjust" hidden>
     <h2>3 · Adjust</h2>
-    <div class="previewWrap">
-      <canvas id="preview"></canvas>
-      <div class="seg" role="tablist">
-        <button data-view="shaded" class="on">3D look</button>
-        <button data-view="height">Heightmap</button>
-        <button data-view="photo">Photo</button>
-      </div>
-    </div>
     <div class="sliders">
       <label>Detail <input type="range" id="detail" min="0" max="100"></label>
       <label>Photo texture <input type="range" id="texture" min="0" max="100"></label>
@@ -61,6 +91,8 @@
 
   <section class="card" id="stepExport" hidden>
     <h2>4 · Size and export</h2>
+    <label class="field">Machine <select id="profile"></select></label>
+    <p class="hint" id="profileTip" hidden></p>
     <div class="grid">
       <label>Width (mm) <input type="number" id="widthMm" value="100" min="10" max="1000"></label>
       <label>Relief depth (mm) <input type="number" id="reliefMm" value="3" min="0.2" max="50" step="0.1"></label>
@@ -69,18 +101,30 @@
     </div>
     <p class="hint" id="sizeInfo"></p>
     <div class="row wrap">
-      <button class="btn primary" data-export="png16">Heightmap PNG (16-bit)</button>
+      <button class="btn" data-export="png16">Heightmap PNG (16-bit)</button>
       <button class="btn" data-export="png8">PNG (8-bit, LightBurn)</button>
       <button class="btn" data-export="stl">STL (3D model)</button>
     </div>
     <p class="hint">16-bit keeps smooth slopes for CNC finishing passes. Use 8-bit for laser software that only reads normal images. STL is for CAM software (Fusion, Carveco, Vectric) and 3D printers.</p>
+    <h3>Test card</h3>
+    <p class="hint">Before a real piece, run the test card on scrap of the same material. It has ten depth steps, a smooth ramp, fine rings and thin lines, so you can see how deep each gray carves and how much detail your machine holds. It uses the size and export above.</p>
+    <button class="btn" id="testCardBtn">Download test card</button>
   </section>
-</main>
+  </main>
+</div>
 
 <dialog id="menu">
   <h2>Photo3D</h2>
   <p id="ver" class="hint"></p>
   <p id="menuUpdate" hidden><button class="btn small primary" id="menuUpdateNow">Install the update</button></p>
+  <h3>Theme</h3>
+  <div id="themes"></div>
+  <h3>Controls position</h3>
+  <div class="seg" id="dockSeg">
+    <span class="bubble" aria-hidden="true"></span>
+    <button data-dock="left">Left</button><button data-dock="bottom">Bottom</button><button data-dock="right">Right</button>
+  </div>
+  <p class="hint">On a phone held upright the controls always sit below the picture.</p>
   <h3>What's new</h3>
   <ul id="whatsNew"></ul>
   <h3>Report a problem</h3>
@@ -90,6 +134,20 @@
     <button class="btn" id="copyReport">Copy report text</button>
   </div>
   <p id="reportStatus" class="hint"></p>
+  <h3>About</h3>
+  <div class="about">
+    <p>Photo3D turns a photo into a 3D relief for laser engravers, CNC routers and 3D printers.</p>
+    <p id="aboutVer" class="hint"></p>
+    <p><b>Privacy.</b> Your photos never leave this device. The app goes online only to download the depth model and 3D viewer the first time, and to send a report when you tap Send.</p>
+    <p><b>Credits.</b></p>
+    <ul>
+      <li>Depth Anything V2 Small, by the University of Hong Kong and TikTok (Apache 2.0)</li>
+      <li>Transformers.js, by Hugging Face (Apache 2.0)</li>
+      <li>ONNX Runtime Web, by Microsoft (MIT)</li>
+      <li>three.js, by the three.js authors (MIT)</li>
+    </ul>
+    <p class="hint">© 2026 VYBEON. All rights reserved.</p>
+  </div>
   <div class="row"><button class="btn" id="closeMenu">Close</button></div>
 </dialog>
 

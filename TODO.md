@@ -3,22 +3,25 @@
 Project code: **P3D**
 
 ## 🔴 Needs you
+- [ ] P3D-004 · Server "High detail" mode on Render (Depth Anything 3 Mono-Large or MoGe-2) · Infra · L · added 2026-11-27 — needs a paid Render instance (a GPU-less starter is too slow for these models) and Gaylan's go-ahead on cost; also decides whether photos may leave the phone for this mode
+- [ ] P3D-018 · AI background cut-out (part of P3D-006) · UI · M · added 2026-11-28 — needs a model choice: RMBG-2.0 is non-commercial only, BiRefNet (MIT) is sharp but a large download for phones, and the small free ones (MODNet for people, U2-Net-p for objects, Apache 2.0) are rougher. The depth-based Remove background slider and Crop cover most cases meanwhile
 
 ## 🔵 Build list
-- [ ] P3D-004 · Server "High detail" mode on Render (Depth Anything 3 Mono-Large or MoGe-2) · Infra · L · added 2026-11-27
-- [ ] P3D-005 · Real 3D preview you can rotate (three.js) · UI · M · added 2026-11-27
-- [ ] P3D-006 · Crop and background cut-out before depth · UI · M · added 2026-11-27
-- [ ] P3D-007 · Machine and material profiles, test card (design flow C) · Data · L · added 2026-11-27
-- [ ] P3D-008 · Tiled depth for sharper detail on big prints · Data · M · added 2026-11-27
-- [ ] P3D-009 · Cleanup button: clean up the photo before processing (denoise, even out light, remove blemishes and dust) · UI · M · added 2026-11-28
-- [ ] P3D-015 · Screen themes from the VYBEON theme swatches PDF (Gaylan's Dropbox link, kept in project notes) · UI · M · added 2026-11-28
-- [ ] P3D-016 · About screen: app name, version and build, what's new, credits and copyright, privacy, model and library credits (like VYBEON Make's About) · UI · S · added 2026-11-28
-- [ ] P3D-017 · Liquid glass buttons, matching VYBEON Make's liquid glass tab bar (MAKE-002): translucent glass, highlight, springy press · UI · M · added 2026-11-28
-- [ ] P3D-010 · Dockable controls: move the control panel to the left, right or bottom of the work area · UI · M · added 2026-11-28
 
 ## 🟡 Hold
 
 ## 🟣 Done
+### 0.2.0 · build 2026.11.28-5
+- [x] P3D-016 · About section in the menu: version and build, privacy, model and library credits, © 2026 VYBEON · UI · S
+- [x] P3D-017 · Liquid glass buttons and a sliding glass bubble on the view and dock switches, after VYBEON Make's tab bar · UI · M
+- [x] P3D-015 · Screen themes: VYBEON, Blush, Mocha, Coastal, Linen, Midnight, Rosewood, Forest (VYBEON swatch colors, same set as VYBEON Make) · UI · M
+- [x] P3D-010 · Dockable controls: left, right or bottom of the picture (header buttons and menu); phones held upright keep the picture on top · UI · M
+- [x] P3D-009 · Clean up button: dust and specks, even light, levels, with a strength slider and Undo · UI · M
+- [x] P3D-006 · Crop before depth, with Undo (AI background cut-out split out as P3D-018) · UI · M
+- [x] P3D-005 · Rotate 3D view (three.js, loaded on first use, kept offline afterwards; smaller mesh on iPhone, freed when you leave the view) · UI · M
+- [x] P3D-007 · Machine and material profiles (diode, CO2, fiber, CNC, fine CNC, lithophane, relief print) and a calibration test card · Data · L
+- [x] P3D-008 · Extra detail: AI depth on the whole photo plus 2 × 2 overlapping parts, merged · Data · M
+
 ### 0.1.4 · build 2026.11.28-4
 - [x] P3D-002 · Report a problem sends via Web3Forms (key from Gaylan) · Infra · S
 

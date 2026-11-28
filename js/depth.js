@@ -3,7 +3,6 @@
 // "quick": no download; a soft brightness-based relief, for offline use or very old phones.
 import { DEPTH_MODEL } from './config.js';
 
-let pipePromise = null;
 let usedDevice = '';
 
 // iPhone/iPad Safari closes a tab that uses too much memory, which looks like
@@ -16,53 +15,44 @@ const MODEL_INPUT = IS_IOS ? 640 : 1024; // the model works at ~518 px anyway
 let avoid = [];
 export function avoidDevices(list) { avoid = list || []; }
 
-async function loadPipe(onProgress) {
-  // Pinned version from jsDelivr; the browser caches it after the first AI run.
-  const T = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.2/dist/transformers.min.js');
-  T.env.allowLocalModels = false;
-  if (IS_IOS) T.env.backends.onnx.wasm.numThreads = 1;
-  const hasGPU = !IS_IOS && !avoid.includes('webgpu') && 'gpu' in navigator && !!(await navigator.gpu.requestAdapter().catch(() => null));
-  const tries = (hasGPU ? [['webgpu', 'fp16'], ['wasm', 'q8']] : [['wasm', 'q8']]);
-  let lastErr;
-  for (const [device, dtype] of tries) {
-    try {
-      usedDevice = device;
-      onProgress && onProgress({ status: 'device', device });
-      return await T.pipeline('depth-estimation', DEPTH_MODEL, { device, dtype, progress_callback: onProgress });
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr;
+// One run in a fresh worker; the worker is always closed afterwards (frees all model memory).
+function runWorker(blob, device, dtype, onProgress) {
+  return new Promise((resolve, reject) => {
+    const w = new Worker(new URL('./depth-worker.js', import.meta.url), { type: 'module' });
+    const done = (fn, v) => { w.terminate(); fn(v); };
+    w.onmessage = ({ data: m }) => {
+      if (m.type === 'progress') onProgress && onProgress(m.p);
+      else if (m.type === 'running') onProgress && onProgress({ status: 'running' });
+      else if (m.type === 'done') done(resolve, { w: m.w, h: m.h, data: m.data });
+      else if (m.type === 'error') done(reject, new Error(m.message));
+    };
+    w.onerror = (ev) => { ev.preventDefault && ev.preventDefault(); done(reject, new Error(ev.message || 'The depth worker failed to start')); };
+    w.postMessage({ blob, model: DEPTH_MODEL, device, dtype, threads: IS_IOS ? 1 : 0 });
+  });
 }
 
 export function depthDevice() { return usedDevice; }
 
-// Unload the model (it reloads from the browser cache next time).
-export async function disposeDepth() {
-  const p = pipePromise; pipePromise = null;
-  if (p) { try { const pipe = await p; await pipe.dispose(); } catch {} }
-}
-
 // Returns { w, h, data: Float32Array } where larger = nearer, any range.
 export async function estimateDepth(canvas, mode, onProgress) {
   if (mode === 'quick') return quickDepth(canvas);
-  if (!pipePromise) pipePromise = loadPipe(onProgress).catch((e) => { pipePromise = null; throw e; });
-  const pipe = await pipePromise;
-  onProgress && onProgress({ status: 'running' });
   const k = Math.min(1, MODEL_INPUT / Math.max(canvas.width, canvas.height));
   const small = document.createElement('canvas');
   small.width = Math.round(canvas.width * k); small.height = Math.round(canvas.height * k);
   small.getContext('2d').drawImage(canvas, 0, 0, small.width, small.height);
   const blob = await new Promise((r) => small.toBlob(r, 'image/jpeg', 0.95));
-  const url = URL.createObjectURL(blob);
-  try {
-    const out = await pipe(url);
-    const t = out.predicted_depth;
-    const dims = t.dims;
-    const h = dims[dims.length - 2], w = dims[dims.length - 1];
-    const result = { w, h, data: Float32Array.from(t.data) };
-    if (IS_IOS) await disposeDepth(); // give the model's memory back before the sliders need it
-    return result;
-  } finally { URL.revokeObjectURL(url); small.width = small.height = 0; }
+  small.width = small.height = 0;
+  const hasGPU = !IS_IOS && !avoid.includes('webgpu') && 'gpu' in navigator && !!(await navigator.gpu.requestAdapter().catch(() => null));
+  const tries = hasGPU ? [['webgpu', 'fp16'], ['wasm', 'q8']] : [['wasm', 'q8']];
+  let lastErr;
+  for (const [device, dtype] of tries) {
+    try {
+      usedDevice = device;
+      onProgress && onProgress({ status: 'device', device });
+      return await runWorker(blob, device, dtype, onProgress);
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr;
 }
 
 function quickDepth(canvas) {

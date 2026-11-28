@@ -4,7 +4,7 @@ import { makeHeightmap, baseDepth, renderPreview, luminance, DEFAULTS } from './
 import { png16, png8, stl, download } from './export.js';
 
 const $ = (id) => document.getElementById(id);
-const MAX_PHOTO = 2048;   // longest side kept from the photo
+const MAX_PHOTO = IS_IOS ? 1600 : 2048; // longest side kept from the photo (iPhone: less memory)
 const PREVIEW = IS_IOS ? 480 : 720; // longest side of the live preview (iPhone: less memory)
 const MAX_STL = 600;      // longest side of the STL grid (keeps files under ~45 MB)
 

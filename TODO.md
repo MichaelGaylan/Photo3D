@@ -18,6 +18,9 @@ Project code: **P3D**
 ## 🟡 Hold
 
 ## 🟣 Done
+### 0.1.3 · build 2026.11.28-3
+- [x] P3D-013 · iPhone still reloaded after AI depth: the model now runs in a Web Worker that is closed after each run, so all its memory is freed; photo kept at 1600 px on iOS · Bug · M
+
 ### 0.1.2 · build 2026.11.28-2
 - [x] P3D-012 · iPhone: moving the sliders after AI depth sent the app back to the start (memory). Model unloaded after use on iOS, smaller cached preview, throttled redraws, session restored after a reload · Bug · M
 

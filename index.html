@@ -80,6 +80,7 @@
 <dialog id="menu">
   <h2>Photo3D</h2>
   <p id="ver" class="hint"></p>
+  <p id="menuUpdate" hidden><button class="btn small primary" id="menuUpdateNow">Install the update</button></p>
   <h3>What's new</h3>
   <ul id="whatsNew"></ul>
   <h3>Report a problem</h3>
@@ -92,7 +93,10 @@
   <div class="row"><button class="btn" id="closeMenu">Close</button></div>
 </dialog>
 
-<div id="updateBar" class="updateBar" hidden>An update is ready. <button class="btn small" id="updateNow">Update now</button></div>
+<div id="updateBar" class="updateBar" hidden role="status">
+  <span>An update is ready.</span>
+  <span class="row"><button class="btn small" id="updateLater">Later</button><button class="btn small primary" id="updateNow">Update now</button></span>
+</div>
 
 <script type="module" src="js/app.js"></script>
 </body>

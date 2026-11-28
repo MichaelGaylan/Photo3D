@@ -17,5 +17,7 @@ export const WHATS_NEW = [
 export const W3F_KEY = '19e35d7e-216c-43ee-b93e-fab02f7eaa91';
 export const REPORT_SUBJECT = 'Photo3D'; // every report email has exactly this subject
 
-// On-device depth model (Apache 2.0). See docs in README.
+// On-device depth model (Apache 2.0, commercial use allowed).
+// Rule: commercial-use licenses only. Do NOT switch to Depth Anything V2 Base or
+// Large, or any CC BY-NC / research-only model: their outputs can't be sold.
 export const DEPTH_MODEL = 'onnx-community/depth-anything-v2-small';

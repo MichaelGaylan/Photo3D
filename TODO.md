@@ -19,6 +19,7 @@ Project code: **P3D**
 
 ## 🟣 Done
 ### 0.1.3 · build 2026.11.28-3
+- [x] P3D-014 · Update notice stays until Update now or Later is tapped; Install the update in the menu; checks for updates when the app is reopened · UI · S
 - [x] P3D-013 · iPhone still reloaded after AI depth: the model now runs in a Web Worker that is closed after each run, so all its memory is freed; photo kept at 1600 px on iOS · Bug · M
 
 ### 0.1.2 · build 2026.11.28-2

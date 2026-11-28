@@ -4,7 +4,7 @@ export const VERSION = '0.1.3';
 export const BUILD = '2026.11.28-3';
 
 export const WHATS_NEW = [
-  ['0.1.3', 'AI depth now runs in its own space and hands all of its memory back when done, so iPhone has room for the sliders.'],
+  ['0.1.3', 'AI depth now runs in its own space and hands all of its memory back when done, so iPhone has room for the sliders. The update notice now stays until you tap Update now or Later, and the menu keeps an Install the update button.'],
   ['0.1.2', 'iPhone: moving the sliders no longer sends you back to the start. If the page ever reloads, your photo and relief come back.'],
   ['0.1.1', 'iPhone: AI depth uses a lighter mode so the page no longer closes; if it ever does, your photo comes back and Quick is offered.'],
   ['0.1.0', 'First version: photo in, AI depth on your device, relief sliders, 16-bit PNG and STL export.'],

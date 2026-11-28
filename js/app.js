@@ -242,7 +242,16 @@ $('sendReport').addEventListener('click', async () => {
 // ---------- Offline and updates ----------
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').then((reg) => {
-    const show = (w) => { $('updateBar').hidden = false; $('updateNow').onclick = () => w.postMessage('skipWaiting'); };
+    // The update bar stays until Update now or Later is tapped. After Later,
+    // the menu (☰) keeps an "Install the update" button.
+    const show = (w) => {
+      const go = () => w.postMessage('skipWaiting');
+      $('updateBar').hidden = false; $('menuUpdate').hidden = false;
+      $('updateNow').onclick = go; $('menuUpdateNow').onclick = go;
+      $('updateLater').onclick = () => { $('updateBar').hidden = true; };
+    };
+    // Check for a new version when the app comes back to the front.
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
     if (reg.waiting) show(reg.waiting);
     reg.addEventListener('updatefound', () => {
       const w = reg.installing;

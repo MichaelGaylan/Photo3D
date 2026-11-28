@@ -3,12 +3,12 @@
 Project code: **P3D**
 
 ## 🔴 Needs you
-- [ ] P3D-004 · Server "High detail" mode on Render (Depth Anything 3 Mono-Large or MoGe-2) · Infra · L · added 2026-11-27 — needs a paid Render instance (a GPU-less starter is too slow for these models) and Gaylan's go-ahead on cost; also decides whether photos may leave the phone for this mode
-- [ ] P3D-018 · AI background cut-out (part of P3D-006) · UI · M · added 2026-11-28 — needs a model choice: RMBG-2.0 is non-commercial only, BiRefNet (MIT) is sharp but a large download for phones, and the small free ones (MODNet for people, U2-Net-p for objects, Apache 2.0) are rougher. The depth-based Remove background slider and Crop cover most cases meanwhile
 
 ## 🔵 Build list
 
 ## 🟡 Hold
+- [ ] P3D-004 · Server "High detail" mode on Render (Depth Anything 3 Mono-Large or MoGe-2) · Infra · L · added 2026-11-27 — on hold 2026-11-28 (Gaylan). Needs a paid Render instance (a GPU-less starter is too slow for these models) and Gaylan's go-ahead on cost; also decides whether photos may leave the phone for this mode
+- [ ] P3D-018 · AI background cut-out (part of P3D-006) · UI · M · added 2026-11-28 — on hold 2026-11-28 (Gaylan). Needs a model choice: RMBG-2.0 is non-commercial only, BiRefNet (MIT) is sharp but a large download for phones, and the small free ones (MODNet for people, U2-Net-p for objects, Apache 2.0) are rougher. The depth-based Remove background slider and Crop cover most cases meanwhile
 
 ## 🟣 Done
 ### 0.2.0 · build 2026.11.28-5

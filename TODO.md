@@ -13,6 +13,8 @@ Project code: **P3D**
 - [ ] P3D-006 · Crop and background cut-out before depth · UI · M · added 2026-11-27
 - [ ] P3D-007 · Machine and material profiles, test card (design flow C) · Data · L · added 2026-11-27
 - [ ] P3D-008 · Tiled depth for sharper detail on big prints · Data · M · added 2026-11-27
+- [ ] P3D-009 · Cleanup button: clean up the photo before processing (denoise, even out light, remove blemishes and dust) · UI · M · added 2026-11-28
+- [ ] P3D-010 · Dockable controls: move the control panel to the left, right or bottom of the work area · UI · M · added 2026-11-28
 
 ## 🟡 Hold
 
